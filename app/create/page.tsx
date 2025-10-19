@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createJob, getJob } from '../../lib/api'
+import { createJob, getJob } from '../../lib/api'   // relative import
 
 export default function CreatePage() {
   const [topic, setTopic] = useState('What is HRT?')
