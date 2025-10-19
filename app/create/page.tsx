@@ -1,35 +1,63 @@
 'use client'
-import { useState } from 'react'
-import { createJob } from '@/lib/api'
+import { useState, useEffect } from 'react'
+import { createJob, getJob } from '../../lib/api'
 
-export default function CreateJobPage() {
+export default function CreatePage() {
   const [topic, setTopic] = useState('What is HRT?')
   const [lengthSec, setLengthSec] = useState(45)
   const [jobId, setJobId] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const submit = async () => {
-    setError(null)
+    setError(null); setVideoUrl(null); setStatus(null); setJobId(null)
     try {
       const r = await createJob({ topic, length_sec: lengthSec, provider: 'ffmpeg', block_phi: true })
-      setJobId(r.id)
-    } catch (e: any) { setError(e.message) }
+      setJobId(r.id); setStatus(r.status)
+    } catch (e: any) { setError(e.message || String(e)) }
   }
 
+  useEffect(() => {
+    if (!jobId) return
+    const t = setInterval(async () => {
+      try {
+        const j = await getJob(jobId)
+        setStatus(j.status)
+        if (j.video_url) setVideoUrl(j.video_url)
+        if (j.status === 'completed' || j.status === 'failed') clearInterval(t)
+      } catch (e: any) { setError(e.message || String(e)); clearInterval(t) }
+    }, 2000)
+    return () => clearInterval(t)
+  }, [jobId])
+
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">New Medical Explainer</h1>
-      <label className="block">
-        <span className="text-sm">Topic</span>
-        <textarea value={topic} onChange={(e)=>setTopic(e.target.value)} className="w-full border rounded p-2" rows={4}/>
+    <main style={{ padding: 24, maxWidth: 700, margin: '0 auto' }}>
+      <h1>New Medical Explainer</h1>
+      <label style={{ display: 'block', marginTop: 12 }}>
+        <div>Topic</div>
+        <textarea rows={4} value={topic} onChange={e => setTopic(e.target.value)} style={{ width: '100%' }} />
       </label>
-      <label className="block">
-        <span className="text-sm">Length (sec)</span>
-        <input type="number" value={lengthSec} onChange={(e)=>setLengthSec(parseInt(e.target.value || '0'))} className="w-full border rounded p-2"/>
+      <label style={{ display: 'block', marginTop: 12 }}>
+        <div>Length (sec)</div>
+        <input type="number" value={lengthSec} onChange={e => setLengthSec(parseInt(e.target.value || '0'))} />
       </label>
-      <button onClick={submit} className="bg-black text-white px-4 py-2 rounded">Create</button>
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      {jobId && <p className="text-sm">Job created: <code>{jobId}</code>. Copy it—you’ll download in the next step.</p>}
-    </div>
+      <div style={{ marginTop: 12 }}>
+        <button onClick={submit}>Create</button>
+      </div>
+      {error && <p style={{ color: 'red' }}>Error: {error}</p>}
+      {jobId && <p>Job ID: <code>{jobId}</code></p>}
+      {status && <p>Status: <b>{status}</b></p>}
+      {videoUrl && (
+        <>
+          <p style={{ marginTop: 12 }}><i>Server path:</i> {videoUrl}</p>
+          {videoUrl.startsWith('file://') ? (
+            <p><a href={`https://YOUR-RENDER-URL.onrender.com/api/download/${jobId}`}>Download MP4</a></p>
+          ) : (
+            <video src={videoUrl} controls style={{ width: '100%', marginTop: 12 }} />
+          )}
+        </>
+      )}
+    </main>
   )
 }
